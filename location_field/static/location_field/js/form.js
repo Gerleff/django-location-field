@@ -90,7 +90,7 @@ var SequentialLoader = function() {
             }, options),
 
             providers: /google|openstreetmap|mapbox/,
-            searchProviders: /google|yandex|nominatim|addok/,
+            searchProviders: /google|yandex|nominatim/,
 
             render: function() {
                 this.$id = $('#' + this.options.id);
@@ -165,31 +165,6 @@ var SequentialLoader = function() {
 
                     request.onerror = function () {
                         console.error('Check connection to Yandex geocoder');
-                    };
-
-                    request.send();
-                }
-
-                else if (this.options.searchProvider === 'addok') {
-                    var url = 'https://api-adresse.data.gouv.fr/search/?limit=1&q=' + address;
-
-                    var request = new XMLHttpRequest();
-                    request.open('GET', url, true);
-
-                    request.onload = function () {
-                        if (request.status >= 200 && request.status < 400) {
-                            var data = JSON.parse(request.responseText);
-                            var pos = data.features[0].geometry.coordinates;
-                            var latLng = new L.LatLng(pos[1], pos[0]);
-                            marker.setLatLng(latLng);
-                            map.panTo(latLng);
-                        } else {
-                            console.error('Addok geocoder error response');
-                        }
-                    };
-
-                    request.onerror = function () {
-                        console.error('Check connection to Addok geocoder');
                     };
 
                     request.send();
@@ -377,7 +352,7 @@ var SequentialLoader = function() {
                 }
                 else if (this.options.provider == 'openstreetmap') {
                     layer = new L.tileLayer(
-                        '//{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        'http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                             maxZoom: 18
                         });
                 }
@@ -433,7 +408,11 @@ var SequentialLoader = function() {
                     onchangeTimer,
                     onchange = function() {
                         var values = basedFields.map(function() {
-                            var value = $(this).val();
+                            if($(this).is('select')){
+                                var value = $(this).find('option:selected').text();
+                            }else{
+                                var value = $(this).val();
+                            }
                             return value === '' ? null : value;
                         });
                         var address = values.toArray().join(', ');
@@ -491,13 +470,16 @@ var SequentialLoader = function() {
     dataLocationFieldObserver(function(){
         var el = $(this);
 
+        if ( ! el.is(':visible'))
+            return;
+
         var name = el.attr('name'),
             options = el.data('location-field-options'),
             basedFields = options.field_options.based_fields,
             pluginOptions = {
                 id: 'map_' + name,
                 inputField: el,
-                latLng: el.val() || '0,0',
+                latLng: el.parent().find(':text').val() || '0,0',
                 suffix: options['search.suffix'],
                 path: options['resources.root_path'],
                 provider: options['map.provider'],
@@ -527,12 +509,8 @@ var SequentialLoader = function() {
             prefixNumber = name.match(/-(\d+)-/)[1];
         } catch (e) {}
 
-        if (options.field_options.prefix) {
-            var prefix = options.field_options.prefix;
-
-            if (prefixNumber != null) {
-                prefix = prefix.replace(/__prefix__/, prefixNumber);
-            }
+        if (prefixNumber != undefined && options.field_options.prefix) {
+            var prefix = options.field_options.prefix.replace(/__prefix__/, prefixNumber);
 
             basedFields = basedFields.map(function(n){
                 return prefix + n
